@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>全区 Apple ID 共享中心 - 实时自动同步</title>
+  <title>全区 Apple ID 共享池 - 实时自动同步</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍎</text></svg>">
   
   <style>
@@ -485,8 +485,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       fetchAccounts();
-      // 每 3 分钟自动发起一次后台同步检测
-      setInterval(() => fetchAccounts(false), 3 * 60 * 1000);
     });
   </script>
 </body>
