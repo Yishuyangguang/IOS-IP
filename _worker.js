@@ -1,21 +1,27 @@
+/**
+ * Apple ID 全量账号云端解析与变动同步引擎
+ * 文件名: _worker.js
+ */
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. 账号自动抓取与过滤接口
+    // 1. 账号全量数据 API
     if (url.pathname === "/api/appleid") {
       try {
-        const sourceUrl = "https://ccbaohe.com/appleID/";
-        const resp = await fetch(sourceUrl, {
+        const targetUrl = "https://ccbaohe.com/appleID/";
+        const resp = await fetch(targetUrl, {
           headers: {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache"
           }
         });
 
         if (!resp.ok) {
-          return new Response(JSON.stringify({ success: false, error: "源站响应异常" }), {
+          return new Response(JSON.stringify({ success: false, error: `源站响应异常 (${resp.status})` }), {
             status: 502,
             headers: { "Content-Type": "application/json; charset=utf-8" }
           });
@@ -23,70 +29,100 @@ export default {
 
         const html = await resp.text();
         const accounts = [];
+        const seenAccounts = new Set();
 
-        // 匹配 HTML 中所有卡片模块
-        // 目标结构：包含【美国】或“美国”，以及 data-clipboard-text 属性
-        const cardRegex = /<div[^>]*class="[^"]*(?:card|item|box)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
-        const allTextBlocks = html.split(/<\/div>\s*<div[^>]*class="[^"]*(?:card|item|col|grid)[^"]*"/i);
+        // 核心解析策略：以【地区】为锚点向后扫描剪贴板文本与更新时间
+        const regionAnchorRegex = /【([^】]+)】/g;
+        let match;
 
-        for (const block of allTextBlocks) {
-          // 仅筛选包含“美国”的区块
-          if (!block.includes("美国") && !block.includes("【美国】")) {
-            continue;
+        while ((match = regionAnchorRegex.exec(html)) !== null) {
+          const region = match[1].trim();
+          const matchIndex = match.index;
+
+          // 截取该锚点前后 1200 字符的 HTML 片段作为一个卡片作用域
+          const scopeStart = Math.max(0, matchIndex - 300);
+          const scopeEnd = Math.min(html.length, matchIndex + 1200);
+          const scopeHtml = html.substring(scopeStart, scopeEnd);
+
+          // 提取剪贴板属性 (兼容 data-clipboard-text, data-text, onclick 等)
+          const clipboardMatches = [];
+          const clipRegex = /(?:data-clipboard-text|data-text|data-value)=["']([^"']+)["']/gi;
+          let clipMatch;
+          while ((clipMatch = clipRegex.exec(scopeHtml)) !== null) {
+            clipboardMatches.push(clipMatch[1].trim());
           }
 
-          // 提取包含在 data-clipboard-text 里的账号和密码
-          const clipMatches = [...block.matchAll(/data-clipboard-text=["']([^"']+)["']/gi)].map(m => m[1].trim());
+          // 如果属性中未找到，匹配 onclick="copy('xxx')"
+          if (clipboardMatches.length === 0) {
+            const onclickRegex = /onclick=["'][^"']*(?:copy|Copy)\(['"]([^'"]+)['"]\)/gi;
+            let ocMatch;
+            while ((ocMatch = onclickRegex.exec(scopeHtml)) !== null) {
+              clipboardMatches.push(ocMatch[1].trim());
+            }
+          }
 
           let account = "";
           let password = "";
 
-          if (clipMatches.length >= 2) {
-            account = clipMatches[0];
-            password = clipMatches[1];
-          } else if (clipMatches.length === 1) {
-            account = clipMatches[0];
+          if (clipboardMatches.length >= 2) {
+            account = clipboardMatches[0];
+            password = clipboardMatches[1];
+          } else if (clipboardMatches.length === 1) {
+            account = clipboardMatches[0];
           }
 
-          // 备用邮箱匹配逻辑
-          if (!account) {
-            const emailMatch = block.match(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/);
-            if (emailMatch) account = emailMatch[0];
+          // 邮箱格式兜底探测
+          if (!account || !account.includes("@")) {
+            const emailDetect = scopeHtml.match(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/);
+            if (emailDetect && !emailDetect[0].includes("***")) {
+              account = emailDetect[0];
+            }
           }
 
           // 提取更新时间
-          const timeMatch = block.match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?/);
-          const updateTime = timeMatch ? timeMatch[0] : "最新可用";
+          const timeDetect = scopeHtml.match(/\d{4}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{1,2}(?::\d{1,2})?/);
+          const updateTime = timeDetect ? timeDetect[0] : "刚刚更新";
 
-          if (account) {
+          // 账号有效性校验与去重
+          if (account && !seenAccounts.has(account)) {
+            seenAccounts.add(account);
             accounts.push({
-              region: "美国",
+              region: region || "未知",
               account: account,
-              password: password || "点击页面复制获取",
+              password: password || "点击复制获取",
               update_time: updateTime
             });
           }
         }
 
-        // 账号去重
-        const uniqueAccounts = [];
-        const seen = new Set();
-        for (const item of accounts) {
-          if (!seen.has(item.account)) {
-            seen.add(item.account);
-            uniqueAccounts.push(item);
+        // 若锚点未匹配到任何数据，执行全文档备用扫描
+        if (accounts.length === 0) {
+          const allClips = [...html.matchAll(/(?:data-clipboard-text|data-text)=["']([^"']+)["']/gi)].map(m => m[1].trim());
+          for (let i = 0; i < allClips.length; i += 2) {
+            const acc = allClips[i];
+            const pwd = allClips[i + 1] || "未提供";
+            if (acc && acc.includes("@") && !seenAccounts.has(acc)) {
+              seenAccounts.add(acc);
+              accounts.push({
+                region: "共享节点",
+                account: acc,
+                password: pwd,
+                update_time: "最新可用"
+              });
+            }
           }
         }
 
         return new Response(JSON.stringify({
           success: true,
-          count: uniqueAccounts.length,
-          accounts: uniqueAccounts,
-          updatedAt: new Date().toISOString()
+          total: accounts.length,
+          accounts: accounts,
+          syncTime: new Date().toISOString()
         }), {
           headers: {
             "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "public, max-age=120, stale-while-revalidate=300" // 缓存2分钟，防止频控
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=60, stale-while-revalidate=180" // 缓存 60 秒，保证源站变动时及时刷新
           }
         });
 
@@ -98,7 +134,7 @@ export default {
       }
     }
 
-    // 2. 静态页面回退托管
+    // 2. 静态资源托管回退
     if (env.ASSETS) {
       return await env.ASSETS.fetch(request);
     }
