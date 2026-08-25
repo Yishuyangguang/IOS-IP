@@ -14,7 +14,6 @@
       --panel-glass-shine: rgba(255, 255, 255, 0.22);
       --sun-gold: #f59e0b;
       --sun-gold-glow: rgba(245, 158, 11, 0.35);
-      --sun-gold-light: #fef3c7;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --danger-border: rgba(239, 68, 68, 0.35);
@@ -35,7 +34,7 @@
       overflow-x: hidden;
     }
 
-    /* 赛博空间网格与动态光效背景 */
+    /* 赛博空间网格与动态光斑背景 */
     body::before {
       content: "";
       position: fixed;
@@ -265,7 +264,6 @@
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 12px var(--sun-gold-glow);
     }
 
-    /* 状态栏 */
     .status-bar {
       display: flex;
       justify-content: space-between;
@@ -327,6 +325,7 @@
       align-items: center;
       gap: 5px;
     }
+    .card-region-badge.us { background: rgba(245, 158, 11, 0.15); color: #fde68a; border-color: rgba(245, 158, 11, 0.3); }
     .card-region-badge.kr { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border-color: rgba(59, 130, 246, 0.3); }
     .card-region-badge.cn { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
     .card-region-badge.br { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.3); }
@@ -547,7 +546,7 @@
 
     // 格式化地区与对应国旗
     function getRegionFlag(region) {
-      if (!region) return "📍 全球通用";
+      if (!region) return "📍 全球地区";
       if (region.includes("美国") || region.includes("美区")) return "🇺🇸 美国";
       if (region.includes("韩国")) return "🇰🇷 韩国";
       if (region.includes("中国大陆") || region.includes("中国")) return "🇨🇳 中国大陆";
@@ -562,6 +561,7 @@
 
     function getRegionBadgeClass(region) {
       if (!region) return "";
+      if (region.includes("美国") || region.includes("美区")) return "us";
       if (region.includes("韩国")) return "kr";
       if (region.includes("中国")) return "cn";
       if (region.includes("巴西")) return "br";
@@ -616,7 +616,7 @@
       const regionCounts = {};
 
       allAccounts.forEach(item => {
-        const reg = item.region || '全球通用';
+        const reg = item.region || '美国';
         regionCounts[reg] = (regionCounts[reg] || 0) + 1;
       });
 
