@@ -1,5 +1,5 @@
 /**
- * Apple ID 实时解密与精准字段映射引擎
+ * 太阳 ios-IP - 真实账号解密与地区精准映射引擎
  * 文件名: _worker.js
  */
 
@@ -22,7 +22,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. 账号数据 API 路由
+    // 1. API 动态抓取与解密接口
     if (url.pathname === "/api/appleid") {
       try {
         const targetUrl = "https://ccbaohe.com/appleID/";
@@ -46,16 +46,33 @@ export default {
         const accounts = [];
         const seen = new Set();
 
-        // 精准按源站卡片单元切割
+        // 按照每个卡片容器精准切片
         const cardBlocks = html.split(/<div\s+class=["'][^"']*card\b[^"']*["']/i);
 
         for (let i = 1; i < cardBlocks.length; i++) {
           const card = cardBlocks[i];
 
-          // 排除广告卡片
+          // 排除非账号内容（如广告卡片）
           if (!card.includes("copy(") && !card.includes("copyEmail")) continue;
 
-          // 1. 提取真实账号 (解密 Cloudflare data-cfemail 或 email-protection 密文)
+          // 1. 严格在当前卡片顶部标题提取准确地区（杜绝误匹配正文中的【设置】）
+          let region = "美国";
+          const headerMatch = card.match(/<div class="card-header[^>]*>([\s\S]*?)<\/div>/i);
+          if (headerMatch) {
+            const regM = headerMatch[1].match(/【([^】]+)】/);
+            if (regM && regM[1].trim() !== "设置" && regM[1].trim() !== "iCloud") {
+              region = regM[1].trim();
+            }
+          } else {
+            const regM = card.match(/【([^】]+)】/);
+            if (regM && regM[1].trim() !== "设置" && regM[1].trim() !== "iCloud") {
+              region = regM[1].trim();
+            }
+          }
+
+          if (region === "美区") region = "美国";
+
+          // 2. 真实账号解密 (还原 Cloudflare 加密邮箱)
           let account = "";
           const cfMatch = card.match(/data-cfemail=["']([a-f0-9]+)["']/i) || card.match(/email-protection#([a-f0-9]+)/i);
           if (cfMatch) {
@@ -67,32 +84,21 @@ export default {
             }
           }
 
-          // 2. 提取真实密码 (从 copy('PASSWORD') 的入参提取)
+          // 3. 真实密码提取
           let password = "";
           const pwdMatch = card.match(/copy\(['"]([^'"]+)['"]\)/i);
           if (pwdMatch) {
             password = pwdMatch[1].trim();
           }
 
-          // 3. 提取国家/地区 (仅从 card-header 中提取，防止误匹配正文中的【设置】)
-          let region = "美国";
-          const headerMatch = card.match(/<div class="card-header[^>]*>([\s\S]*?)<\/div>/i);
-          if (headerMatch) {
-            const regM = headerMatch[1].match(/【(.*?)】/);
-            if (regM && regM[1].trim() !== "设置") {
-              region = regM[1].trim();
-            }
-          }
-          if (region === "美区") region = "美国";
-
-          // 4. 提取更新时间
-          let updateTime = "最新更新";
+          // 4. 更新时间提取
+          let updateTime = "最新同步";
           const timeMatch = card.match(/账号更新：(?:<\/span>)?\s*([0-9\-\:\s]+)/i);
           if (timeMatch) {
             updateTime = timeMatch[1].trim();
           }
 
-          // 校验有效性与去重
+          // 去重并存储
           if (account && account.includes("@") && password && !seen.has(account)) {
             seen.add(account);
             accounts.push({
