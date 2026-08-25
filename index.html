@@ -15,7 +15,6 @@
       --sun-gold: #f59e0b;
       --sun-gold-glow: rgba(245, 158, 11, 0.35);
       --sun-gold-light: #fef3c7;
-      --cyber-cyan: #06b6d4;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --danger-border: rgba(239, 68, 68, 0.35);
@@ -36,7 +35,7 @@
       overflow-x: hidden;
     }
 
-    /* 赛博空间高科技光效背景 */
+    /* 赛博空间网格与动态光效背景 */
     body::before {
       content: "";
       position: fixed;
@@ -331,6 +330,7 @@
     .card-region-badge.kr { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border-color: rgba(59, 130, 246, 0.3); }
     .card-region-badge.cn { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
     .card-region-badge.br { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.3); }
+    .card-region-badge.unknown { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.3); }
 
     .card-time {
       font-size: 11px;
@@ -351,7 +351,6 @@
       letter-spacing: 0.5px;
     }
 
-    /* 3D 凹陷式数据展示框 */
     .card-val-box {
       background: rgba(2, 6, 23, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -373,7 +372,6 @@
       margin-right: 8px;
     }
 
-    /* 3D 复制按钮 */
     .btn-copy-3d {
       padding: 5px 12px;
       border-radius: 8px;
@@ -404,7 +402,6 @@
       box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
     }
 
-    /* 空状态提示 */
     .empty-state {
       grid-column: 1 / -1;
       text-align: center;
@@ -417,7 +414,6 @@
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
     }
 
-    /* 3D 浮动 Toast 提示 */
     #toast {
       position: fixed;
       bottom: 28px;
@@ -444,7 +440,6 @@
 <body>
 
   <div class="container">
-    <!-- 头部品牌区 -->
     <header>
       <div class="brand-box">
         <div class="brand-icon">Y</div>
@@ -468,7 +463,6 @@
         本站共享账号仅供在 <mark>App Store（应用商店）</mark> 内登录下载免费 App。
       </div>
 
-      <!-- 6 步标准流程 -->
       <div class="security-steps-grid">
         <div class="step-item">
           <div class="step-num">1</div>
@@ -551,15 +545,18 @@
       });
     }
 
-    // 获取地区专属旗帜或图标
+    // 格式化地区与对应国旗
     function getRegionFlag(region) {
-      if (!region) return "📍 全球";
-      if (region.includes("美国")) return "🇺🇸 美国";
+      if (!region) return "📍 全球通用";
+      if (region.includes("美国") || region.includes("美区")) return "🇺🇸 美国";
       if (region.includes("韩国")) return "🇰🇷 韩国";
-      if (region.includes("中国")) return "🇨🇳 中国大陆";
+      if (region.includes("中国大陆") || region.includes("中国")) return "🇨🇳 中国大陆";
       if (region.includes("巴西")) return "🇧🇷 巴西";
       if (region.includes("日本")) return "🇯🇵 日本";
       if (region.includes("香港")) return "🇭🇰 中国香港";
+      if (region.includes("台湾")) return "🇨🇳 中国台湾";
+      if (region.includes("英国")) return "🇬🇧 英国";
+      if (region.includes("未知")) return "🌐 未知地区";
       return `📍 ${region}`;
     }
 
@@ -568,6 +565,7 @@
       if (region.includes("韩国")) return "kr";
       if (region.includes("中国")) return "cn";
       if (region.includes("巴西")) return "br";
+      if (region.includes("未知")) return "unknown";
       return "";
     }
 
@@ -618,7 +616,7 @@
       const regionCounts = {};
 
       allAccounts.forEach(item => {
-        const reg = item.region || '美国';
+        const reg = item.region || '全球通用';
         regionCounts[reg] = (regionCounts[reg] || 0) + 1;
       });
 
