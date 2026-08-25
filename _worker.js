@@ -46,38 +46,28 @@ export default {
         const accounts = [];
         const seen = new Set();
 
-        // 按照每个卡片容器精准切片
-        const cardBlocks = html.split(/<div\s+class=["'][^"']*card\b[^"']*["']/i);
+        // 按卡片列容器分割，确保每个卡片的完整头部与内容独立
+        const cardBlocks = html.split(/<div[^>]*class=["'][^"']*col-lg-3/i);
 
         for (let i = 1; i < cardBlocks.length; i++) {
           const card = cardBlocks[i];
 
-          // 排除广告卡片
+          // 排除广告与商城卡片
           if (!card.includes("copy(") && !card.includes("copyEmail")) continue;
 
-          // 1. 严格在当前卡片头部（card-header / h5）提取真实地区
-          let region = "全球通用";
-          const headerMatch = card.match(/<div class="card-header[^>]*>([\s\S]*?)<\/div>/i) || card.match(/<h5[^>]*>([\s\S]*?)<\/h5>/i);
+          // 1. 严格在卡片标题区（card-body 或 账号更新 之前）提取真实地区
+          let region = "美国";
+          const titleSection = card.split(/card-body|账号更新/i)[0];
+          const regM = titleSection.match(/【([^】]+)】/);
           
-          if (headerMatch) {
-            const headerText = headerMatch[1];
-            const regM = headerText.match(/【([^】]+)】/);
-            if (regM) {
-              const r = regM[1].trim();
-              if (r !== "设置" && r !== "iCloud" && r !== "商城") {
-                region = r;
-              }
+          if (regM) {
+            const r = regM[1].trim();
+            if (r !== "设置" && r !== "iCloud" && r !== "商城") {
+              region = r;
             }
           } else {
-            // 备用：从整个卡片中提取排除掉“设置”的第一个方括号
-            const allBrackets = [...card.matchAll(/【([^】]+)】/g)];
-            for (const b of allBrackets) {
-              const r = b[1].trim();
-              if (r !== "设置" && r !== "iCloud" && r !== "商城") {
-                region = r;
-                break;
-              }
-            }
+            // 没有标注方括号的 iCloud 账号默认归为美国区
+            region = "美国";
           }
 
           if (region === "美区") region = "美国";
