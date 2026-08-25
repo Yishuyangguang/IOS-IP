@@ -1,5 +1,5 @@
 /**
- * 太阳 ios-IP - 真实账号解密与地区精准映射引擎
+ * 太阳 ios-IP - 真实账号解密与多国地区精准映射引擎
  * 文件名: _worker.js
  */
 
@@ -52,21 +52,31 @@ export default {
         for (let i = 1; i < cardBlocks.length; i++) {
           const card = cardBlocks[i];
 
-          // 排除非账号内容（如广告卡片）
+          // 排除广告卡片
           if (!card.includes("copy(") && !card.includes("copyEmail")) continue;
 
-          // 1. 严格在当前卡片顶部标题提取准确地区（杜绝误匹配正文中的【设置】）
-          let region = "美国";
-          const headerMatch = card.match(/<div class="card-header[^>]*>([\s\S]*?)<\/div>/i);
+          // 1. 严格在当前卡片头部（card-header / h5）提取真实地区
+          let region = "全球通用";
+          const headerMatch = card.match(/<div class="card-header[^>]*>([\s\S]*?)<\/div>/i) || card.match(/<h5[^>]*>([\s\S]*?)<\/h5>/i);
+          
           if (headerMatch) {
-            const regM = headerMatch[1].match(/【([^】]+)】/);
-            if (regM && regM[1].trim() !== "设置" && regM[1].trim() !== "iCloud") {
-              region = regM[1].trim();
+            const headerText = headerMatch[1];
+            const regM = headerText.match(/【([^】]+)】/);
+            if (regM) {
+              const r = regM[1].trim();
+              if (r !== "设置" && r !== "iCloud" && r !== "商城") {
+                region = r;
+              }
             }
           } else {
-            const regM = card.match(/【([^】]+)】/);
-            if (regM && regM[1].trim() !== "设置" && regM[1].trim() !== "iCloud") {
-              region = regM[1].trim();
+            // 备用：从整个卡片中提取排除掉“设置”的第一个方括号
+            const allBrackets = [...card.matchAll(/【([^】]+)】/g)];
+            for (const b of allBrackets) {
+              const r = b[1].trim();
+              if (r !== "设置" && r !== "iCloud" && r !== "商城") {
+                region = r;
+                break;
+              }
             }
           }
 
@@ -84,7 +94,7 @@ export default {
             }
           }
 
-          // 3. 真实密码提取
+          // 3. 真实密码提取 (从 copy('PASSWORD') 提取)
           let password = "";
           const pwdMatch = card.match(/copy\(['"]([^'"]+)['"]\)/i);
           if (pwdMatch) {
